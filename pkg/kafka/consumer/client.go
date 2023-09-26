@@ -113,7 +113,14 @@ func (c *Consumer) recheck() {
 			changed = true
 		} else {
 			for i := range newTopics {
-				if newTopics[i] != c.actualTopics[i] {
+				found := false
+				for j := range c.actualTopics {
+					if newTopics[i] == c.actualTopics[j] {
+						found = true
+						break
+					}
+				}
+				if !found {
 					changed = true
 					break
 				}
