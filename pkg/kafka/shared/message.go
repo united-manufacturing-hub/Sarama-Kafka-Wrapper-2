@@ -12,11 +12,11 @@ const CycleTime = 100 * time.Millisecond
 // KafkaMessage represents a message in the Kafka queue.
 type KafkaMessage struct {
 	Headers   map[string]string
+	Topic     string
 	Key       []byte
 	Value     []byte
-	Topic     string
-	Partition int32
 	Offset    int64
+	Partition int32
 }
 
 // FromConsumerMessage converts a sarama.ConsumerMessage to a KafkaMessage.
@@ -82,7 +82,7 @@ func ToProducerMessage(message *KafkaMessage) *sarama.ProducerMessage {
 		return nil
 	}
 	if err := addXTrace(&m.Headers); err != nil {
-		// Handle error if needed.
+		return nil
 	}
 	return m
 }

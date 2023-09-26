@@ -1,8 +1,8 @@
 package consumer
 
 import (
-	"Sarama-Kafka-Wrapper-2/pkg/kafka/shared"
 	"github.com/IBM/sarama"
+	"github.com/united-manufacturing-hub/Sarama-Kafka-Wrapper-2/pkg/kafka/shared"
 	"go.uber.org/zap"
 	"sync/atomic"
 	"time"

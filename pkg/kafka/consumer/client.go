@@ -1,24 +1,24 @@
 package consumer
 
 import (
-	"Sarama-Kafka-Wrapper-2/pkg/kafka/shared"
 	"context"
 	"github.com/IBM/sarama"
+	"github.com/united-manufacturing-hub/Sarama-Kafka-Wrapper-2/pkg/kafka/shared"
 	"go.uber.org/zap"
 	"sync/atomic"
 )
 
 // Consumer wraps sarama's ConsumerGroup.
 type Consumer struct {
-	brokers               []string
-	topic                 string
 	consumerGroup         *sarama.ConsumerGroup
-	running               atomic.Bool
 	incomingMessages      chan *shared.KafkaMessage
 	consumerContextCancel context.CancelFunc
 	messagesToMark        chan *shared.KafkaMessage
+	topic                 string
+	brokers               []string
 	markedMessages        atomic.Uint64
 	consumedMessages      atomic.Uint64
+	running               atomic.Bool
 }
 
 // NewConsumer initializes a Consumer.

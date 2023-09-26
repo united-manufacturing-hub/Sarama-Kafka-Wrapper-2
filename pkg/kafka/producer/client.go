@@ -1,8 +1,8 @@
 package producer
 
 import (
-	"Sarama-Kafka-Wrapper-2/pkg/kafka/shared"
 	"github.com/IBM/sarama"
+	"github.com/united-manufacturing-hub/Sarama-Kafka-Wrapper-2/pkg/kafka/shared"
 	"go.uber.org/zap"
 	"sync/atomic"
 	"time"
@@ -10,10 +10,10 @@ import (
 
 // Producer struct wraps a sarama.AsyncProducer and handles Kafka message production.
 type Producer struct {
+	producer         *sarama.AsyncProducer
 	brokers          []string
 	producedMessages atomic.Uint64
 	erroredMessages  atomic.Uint64
-	producer         *sarama.AsyncProducer
 	running          atomic.Bool
 }
 

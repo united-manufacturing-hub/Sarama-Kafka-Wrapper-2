@@ -1,8 +1,8 @@
 package producer
 
 import (
-	"Sarama-Kafka-Wrapper-2/pkg/kafka/shared"
 	"encoding/json"
+	"github.com/united-manufacturing-hub/Sarama-Kafka-Wrapper-2/pkg/kafka/shared"
 	"math/rand"
 	"strconv"
 	"testing"
@@ -65,9 +65,9 @@ func genMessage(t *testing.T) *shared.KafkaMessage {
 		Topic: "umh.v1.producer.test",
 	}
 
-	randKey := randSeq(rand.Intn(60))
+	randKey := randSeq(rand.Intn(60)) //nolint:gosec
 	randValMap := make(map[string]string, 10)
-	randValMap[randSeq(rand.Intn(10))] = randSeq(rand.Intn(60))
+	randValMap[randSeq(rand.Intn(10))] = randSeq(rand.Intn(60)) //nolint:gosec
 	randValMap["timestamp_ms"] = strconv.FormatInt(time.Now().UnixMilli(), 10)
 	randVal, err := json.Marshal(randValMap)
 	if err != nil {
@@ -86,7 +86,7 @@ var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 func randSeq(n int) string {
 	b := make([]rune, n)
 	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
+		b[i] = letters[rand.Intn(len(letters))] //nolint:gosec
 	}
 	return string(b)
 }

@@ -1,13 +1,9 @@
 package consumer
 
 import (
-	"Sarama-Kafka-Wrapper-2/pkg/kafka/shared"
 	"context"
 	"fmt"
-	"gonum.org/v1/plot"
-	"gonum.org/v1/plot/plotter"
-	"gonum.org/v1/plot/plotutil"
-	"gonum.org/v1/plot/vg"
+	"github.com/united-manufacturing-hub/Sarama-Kafka-Wrapper-2/pkg/kafka/shared"
 	"os"
 	"testing"
 	"time"
@@ -108,49 +104,4 @@ breakOuter:
 
 	time.Sleep(10 * time.Second)
 	t.Log("Goodbye")
-}
-
-func TestGenPlot(t *testing.T) {
-	// read msgPerSecMap.txt
-	f, err := os.Open("msgPerSecMap.txt")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-
-	ptsMsgSec := make(plotter.XYs, 0, 720)
-	var startTs int64
-
-	// For each line
-	for {
-		var x, y int64
-		_, err := fmt.Fscanf(f, "[%d] %d\n", &x, &y)
-		if err != nil {
-			break
-		}
-		if startTs == 0 {
-			startTs = x
-		}
-		timeDiffToStart := x - startTs
-		// convert x (nanoseconds) to minutes
-		timeDiffToStart = timeDiffToStart / 1_000_000_000 / 60
-		ptsMsgSec = append(ptsMsgSec, plotter.XY{X: float64(timeDiffToStart), Y: float64(y)})
-	}
-
-	// Plot graph
-
-	p := plot.New()
-
-	p.Title.Text = "Messages per second"
-	p.X.Label.Text = "Time (minutes)"
-	p.Y.Label.Text = "Messages/s"
-
-	err = plotutil.AddScatters(p, "Messages/s", ptsMsgSec)
-	if err != nil {
-		t.Log(err)
-	} else {
-		if err := p.Save(20*vg.Inch, 8*vg.Inch, "msgPerSecMap.svg"); err != nil {
-			t.Log(err)
-		}
-	}
 }
