@@ -5,8 +5,11 @@ import (
 	"time"
 )
 
+// CycleTime is the default cycle time for loops.
+// It is used in the consumer and producer.
 const CycleTime = 100 * time.Millisecond
 
+// KafkaMessage represents a message in the Kafka queue.
 type KafkaMessage struct {
 	Headers   map[string]string
 	Key       []byte
@@ -16,12 +19,13 @@ type KafkaMessage struct {
 	Offset    int64
 }
 
+// FromConsumerMessage converts a sarama.ConsumerMessage to a KafkaMessage.
 func FromConsumerMessage(message *sarama.ConsumerMessage) *KafkaMessage {
 	if message == nil {
 		return nil
 	}
 	m := &KafkaMessage{
-		Headers:   make(map[string]string),
+		Headers:   make(map[string]string, len(message.Headers)),
 		Key:       message.Key,
 		Value:     message.Value,
 		Topic:     message.Topic,
@@ -34,6 +38,7 @@ func FromConsumerMessage(message *sarama.ConsumerMessage) *KafkaMessage {
 	return m
 }
 
+// ToConsumerMessage converts a KafkaMessage to a sarama.ConsumerMessage.
 func ToConsumerMessage(message *KafkaMessage) *sarama.ConsumerMessage {
 	if message == nil {
 		return nil
@@ -45,6 +50,7 @@ func ToConsumerMessage(message *KafkaMessage) *sarama.ConsumerMessage {
 		Partition: message.Partition,
 		Offset:    message.Offset,
 	}
+	m.Headers = make([]*sarama.RecordHeader, 0, len(message.Headers))
 	for k, v := range message.Headers {
 		m.Headers = append(m.Headers, &sarama.RecordHeader{
 			Key:   []byte(k),
@@ -54,38 +60,29 @@ func ToConsumerMessage(message *KafkaMessage) *sarama.ConsumerMessage {
 	return m
 }
 
-// ToProducerMessage converts a KafkaMessage to a sarama.ProducerMessage
-// It will ignore the Partition and Offset fields
-// It also sets trace headers
+// ToProducerMessage converts a KafkaMessage to a sarama.ProducerMessage.
+// It ignores the Partition and Offset fields and sets trace headers.
 func ToProducerMessage(message *KafkaMessage) *sarama.ProducerMessage {
 	if message == nil {
 		return nil
 	}
 	m := &sarama.ProducerMessage{
 		Topic: message.Topic,
+		Key:   sarama.ByteEncoder(message.Key),
+		Value: sarama.ByteEncoder(message.Value),
 	}
-	if message.Key != nil {
-		m.Key = sarama.StringEncoder(message.Key)
-	}
-	if message.Value != nil {
-		m.Value = sarama.StringEncoder(message.Value)
-	}
+	m.Headers = make([]sarama.RecordHeader, 0, len(message.Headers))
 	for k, v := range message.Headers {
 		m.Headers = append(m.Headers, sarama.RecordHeader{
 			Key:   []byte(k),
 			Value: []byte(v),
 		})
 	}
-
-	// Add x-origin headers
-	if err := AddXOriginIfMissing(&m.Headers); err != nil {
+	if err := addXOriginIfMissing(&m.Headers); err != nil {
 		return nil
 	}
-
-	// Add x-trace headers
-	if err := AddXTrace(&m.Headers); err != nil {
-
+	if err := addXTrace(&m.Headers); err != nil {
+		// Handle error if needed.
 	}
-
 	return m
 }

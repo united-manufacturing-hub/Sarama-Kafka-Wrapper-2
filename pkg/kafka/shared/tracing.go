@@ -10,9 +10,11 @@ import (
 	"time"
 )
 
+// serialNumber's error is ignored because it will fall back to the default value
+// microserviceName's error is ignored because it will fall back to the default value
 var (
-	serialNumber, _     = env.GetAsString("SERIAL_NUMBER", false, "")
-	microserviceName, _ = env.GetAsString("MICROSERVICE_NAME", false, "")
+	serialNumber, _     = env.GetAsString("SERIAL_NUMBER", false, "")     //nolint:errcheck
+	microserviceName, _ = env.GetAsString("MICROSERVICE_NAME", false, "") //nolint:errcheck
 )
 
 // TraceValue holds trace information.
@@ -25,21 +27,21 @@ func addXOrigin(headers *[]sarama.RecordHeader, origin string) error {
 	return addHeaderTrace(headers, "x-origin", origin)
 }
 
-// AddXOriginIfMissing conditionally adds x-origin to Kafka headers.
-func AddXOriginIfMissing(headers *[]sarama.RecordHeader) error {
-	if GetTrace(headers, "x-origin") == nil {
+// addXOriginIfMissing conditionally adds x-origin to Kafka headers.
+func addXOriginIfMissing(headers *[]sarama.RecordHeader) error {
+	if getTrace(headers, "x-origin") == nil {
 		return addXOrigin(headers, serialNumber)
 	}
 	return nil
 }
 
-// AddXTrace adds x-trace to Kafka headers.
-func AddXTrace(headers *[]sarama.RecordHeader) error {
+// addXTrace adds x-trace to Kafka headers.
+func addXTrace(headers *[]sarama.RecordHeader) error {
 	identifier := microserviceName + "-" + serialNumber
 	if err := addHeaderTrace(headers, "x-trace", identifier); err != nil {
 		return err
 	}
-	return AddXOriginIfMissing(headers)
+	return addXOriginIfMissing(headers)
 }
 
 // addHeaderTrace is a helper for adding new traces to Kafka headers.
@@ -79,8 +81,8 @@ func addHeaderTrace(headers *[]sarama.RecordHeader, key, value string) error {
 	return nil
 }
 
-// GetTrace retrieves trace information from Kafka headers.
-func GetTrace(message *[]sarama.RecordHeader, key string) *TraceValue {
+// getTrace retrieves trace information from Kafka headers.
+func getTrace(message *[]sarama.RecordHeader, key string) *TraceValue {
 	for _, header := range *message {
 		if bytes.EqualFold(header.Key, []byte(key)) {
 			var trace TraceValue
