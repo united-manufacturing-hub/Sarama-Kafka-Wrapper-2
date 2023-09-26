@@ -1,12 +1,8 @@
 package shared
 
 import (
-	"bytes"
 	"encoding/json"
-	"errors"
-	"github.com/IBM/sarama"
 	"github.com/united-manufacturing-hub/umh-utils/env"
-	"go.uber.org/zap"
 	"time"
 )
 
@@ -17,81 +13,89 @@ var (
 	microserviceName, _ = env.GetAsString("MICROSERVICE_NAME", false, "") //nolint:errcheck
 )
 
-// TraceValue holds trace information.
 type TraceValue struct {
 	Traces map[int64]string `json:"trace"`
 }
 
-// addXOrigin adds x-origin to Kafka headers.
-func addXOrigin(headers *[]sarama.RecordHeader, origin string) error {
-	return addHeaderTrace(headers, "x-origin", origin)
-}
-
-// addXOriginIfMissing conditionally adds x-origin to Kafka headers.
-func addXOriginIfMissing(headers *[]sarama.RecordHeader) error {
-	if getTrace(headers, "x-origin") == nil {
-		return addXOrigin(headers, serialNumber)
+func AddSHeader(msg *KafkaMessage, key string, value string) {
+	if msg.Headers == nil {
+		msg.Headers = make(map[string]string)
 	}
-	return nil
+	msg.Headers[key] = value
 }
 
-// addXTrace adds x-trace to Kafka headers.
-func addXTrace(headers *[]sarama.RecordHeader) error {
+func GetSHeader(msg *KafkaMessage, key string) (bool, string) {
+	if msg.Headers == nil {
+		return false, ""
+	}
+	if value, ok := msg.Headers[key]; ok {
+		return true, value
+	}
+	return false, ""
+}
+
+func IsSameOrigin(msg *KafkaMessage) bool {
+	ok, origin := GetSXOrigin(msg)
+	if !ok {
+		return false
+	}
+	return origin == serialNumber
+}
+func GetSXOrigin(msg *KafkaMessage) (bool, string) {
+	return GetSHeader(msg, "x-origin")
+}
+
+func AddSXOrigin(msg *KafkaMessage) {
+	AddSHeader(msg, "x-origin", serialNumber)
+}
+
+func IsInTrace(msg *KafkaMessage) bool {
 	identifier := microserviceName + "-" + serialNumber
-	if err := addHeaderTrace(headers, "x-trace", identifier); err != nil {
-		return err
-	}
-	return addXOriginIfMissing(headers)
-}
 
-// addHeaderTrace is a helper for adding new traces to Kafka headers.
-func addHeaderTrace(headers *[]sarama.RecordHeader, key, value string) error {
-	if len(*headers) == 0 {
-		*headers = make([]sarama.RecordHeader, 0)
+	ok, trace := GetSXTrace(msg)
+	if !ok {
+		return false
 	}
-
-	for i, header := range *headers {
-		if bytes.EqualFold(header.Key, []byte(key)) {
-			var trace TraceValue
-			if err := json.Unmarshal(header.Value, &trace); err != nil {
-				return err
-			}
-			t := time.Now().UnixNano()
-			if _, exists := trace.Traces[t]; exists {
-				return errors.New("trace already exists")
-			}
-			trace.Traces[t] = value
-			jsonBytes, err := json.Marshal(trace)
-			if err != nil {
-				return err
-			}
-			header.Value = jsonBytes
-			(*headers)[i] = header
-			return nil
+	for _, s := range trace.Traces {
+		if s == identifier {
+			return true
 		}
 	}
+	return false
+}
 
-	trace := TraceValue{Traces: map[int64]string{time.Now().UnixNano(): value}}
-	jsonBytes, err := json.Marshal(trace)
+func GetSXTrace(msg *KafkaMessage) (bool, TraceValue) {
+	ok, traceS := GetSHeader(msg, "x-trace")
+	var traceValue TraceValue
+	if !ok {
+		return false, traceValue
+	} else {
+		err := json.Unmarshal([]byte(traceS), &traceValue)
+		if err != nil {
+			return false, traceValue
+		}
+	}
+	return true, traceValue
+}
+
+func AddSXTrace(msg *KafkaMessage) error {
+	identifier := microserviceName + "-" + serialNumber
+	ok, trace := GetSXTrace(msg)
+	if !ok {
+		trace = TraceValue{
+			Traces: map[int64]string{},
+		}
+		trace.Traces = make(map[int64]string)
+	}
+
+	t := time.Now().UnixNano()
+	trace.Traces[t] = identifier
+
+	j, err := json.Marshal(trace)
 	if err != nil {
 		return err
 	}
+	AddSHeader(msg, "x-trace", string(j))
 
-	*headers = append(*headers, sarama.RecordHeader{Key: []byte(key), Value: jsonBytes})
-	return nil
-}
-
-// getTrace retrieves trace information from Kafka headers.
-func getTrace(message *[]sarama.RecordHeader, key string) *TraceValue {
-	for _, header := range *message {
-		if bytes.EqualFold(header.Key, []byte(key)) {
-			var trace TraceValue
-			if err := json.Unmarshal(header.Value, &trace); err != nil {
-				zap.S().Errorf("Failed to unmarshal trace header: %s (%s)", err, key)
-				return nil
-			}
-			return &trace
-		}
-	}
 	return nil
 }
