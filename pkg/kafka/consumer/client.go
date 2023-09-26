@@ -23,6 +23,7 @@ type Consumer struct {
 	running               atomic.Bool
 	actualTopics          []string
 	internalCtx           context.Context
+	rawClient             sarama.Client
 }
 
 // NewConsumer initializes a Consumer.
@@ -30,7 +31,19 @@ func NewConsumer(brokers, topic []string, groupName string) (*Consumer, error) {
 	config := sarama.NewConfig()
 	config.Consumer.Offsets.Initial = sarama.OffsetOldest
 
-	cg, err := sarama.NewConsumerGroup(brokers, groupName, config)
+	c, err := sarama.NewClient(brokers, config)
+	if err != nil {
+		return nil, err
+	}
+	zap.S().Infof("connected to brokers: %v", brokers)
+	err = c.RefreshMetadata()
+	if err != nil {
+		return nil, err
+	}
+	zap.S().Info("Refreshed metadata")
+
+	var cg sarama.ConsumerGroup
+	cg, err = sarama.NewConsumerGroupFromClient(groupName, c)
 	if err != nil {
 		return nil, err
 	}
@@ -48,6 +61,7 @@ func NewConsumer(brokers, topic []string, groupName string) (*Consumer, error) {
 		brokers:          brokers,
 		regexTopics:      rgxTopics,
 		consumerGroup:    &cg,
+		rawClient:        c,
 		incomingMessages: make(chan *shared.KafkaMessage, 100_000),
 		messagesToMark:   make(chan *shared.KafkaMessage, 100_000),
 	}, nil
@@ -77,6 +91,12 @@ func (c *Consumer) consume() {
 		zap.S().Infof("starting consumer with topics %v", c.actualTopics)
 
 		if err := (*c.consumerGroup).Consume(c.internalCtx, c.actualTopics, handler); err != nil {
+			// Check if the error is "no topics provided"
+			if err.Error() == "no topics provided" {
+				zap.S().Info("no topics provided")
+				time.Sleep(shared.CycleTime * 10)
+				continue
+			}
 			c.running.Store(false)
 			zap.S().Error(err)
 		}
@@ -84,25 +104,21 @@ func (c *Consumer) consume() {
 }
 
 func (c *Consumer) recheck() {
-	adminClient, err := sarama.NewClusterAdmin(c.brokers, sarama.NewConfig())
-	if err != nil {
-		zap.S().Fatal(err)
-		return
-	}
+	zap.S().Infof("starting recheck")
 
-	var topics map[string]sarama.TopicDetail
+	var topics []string
+	var err error
 	for c.running.Load() {
-		topics, err = adminClient.ListTopics()
+		topics, err = c.rawClient.Topics()
 		if err != nil {
 			continue
 		}
+		zap.S().Debugf("client has %v", topics)
 		var newTopics []string
-		for name, details := range topics {
+		for _, name := range topics {
 			for _, rgx := range c.regexTopics {
 				if rgx.MatchString(name) {
-					if details.NumPartitions > 0 {
-						newTopics = append(newTopics, name)
-					}
+					newTopics = append(newTopics, name)
 					break
 				}
 			}
@@ -110,6 +126,7 @@ func (c *Consumer) recheck() {
 
 		var changed bool
 		if len(newTopics) != len(c.actualTopics) {
+			zap.S().Infof("topics changed [fast] %v -> %v", c.actualTopics, newTopics)
 			changed = true
 		} else {
 			for i := range newTopics {
@@ -122,6 +139,7 @@ func (c *Consumer) recheck() {
 				}
 				if !found {
 					changed = true
+					zap.S().Infof("topics changed [slow] %v -> %v", c.actualTopics, newTopics)
 					break
 				}
 			}
@@ -129,18 +147,22 @@ func (c *Consumer) recheck() {
 		if changed {
 			zap.S().Infof("topics changed from %v to %v", c.actualTopics, newTopics)
 			c.running.Store(false)
-			err = (*c.consumerGroup).Close()
 			if err != nil {
 				zap.S().Fatal(err)
 			}
 			// Wait for the consumer to stop
 			time.Sleep(shared.CycleTime * 10)
+			c.running.Store(true)
 			c.actualTopics = newTopics
 			c.consume()
 			zap.S().Infof("restarted consumer with topics %v", c.actualTopics)
+		} else {
+			zap.S().Debugf("topics did not change")
 		}
+		_ = c.rawClient.RefreshMetadata()
 		time.Sleep(shared.CycleTime * 50)
 	}
+	zap.S().Infof("stopped recheck")
 }
 
 // Close terminates the Consumer.

@@ -4,12 +4,16 @@ import (
 	"context"
 	"fmt"
 	"github.com/united-manufacturing-hub/Sarama-Kafka-Wrapper-2/pkg/kafka/shared"
+	"github.com/united-manufacturing-hub/umh-utils/logger"
 	"os"
 	"testing"
 	"time"
 )
 
 func TestConnectAndReceive(t *testing.T) {
+	// enable zap
+	logger.New("DEVELOPMENT")
+
 	t.Log("Starting TestConnectAndReceive test")
 	brokers := []string{
 		"10.99.112.33:31092",
@@ -17,12 +21,12 @@ func TestConnectAndReceive(t *testing.T) {
 		"10.99.112.35:31092",
 	}
 
-	topic := "umh.v1.chernobylnuclearpowerplant"
+	topic := "umh.v1..*"
 
 	groupName := "sarama-kafka-wrapper-test-tcar-2"
 
 	t.Logf("Connecting to brokers: %v", brokers)
-	testConsumer, err := NewConsumer(brokers, topic, groupName)
+	testConsumer, err := NewConsumer(brokers, []string{topic}, groupName)
 	if err != nil {
 		t.Fatal(err)
 	}
