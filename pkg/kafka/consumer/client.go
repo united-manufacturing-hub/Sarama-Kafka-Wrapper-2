@@ -5,7 +5,9 @@ import (
 	"github.com/IBM/sarama"
 	"github.com/united-manufacturing-hub/Sarama-Kafka-Wrapper-2/pkg/kafka/shared"
 	"go.uber.org/zap"
+	"regexp"
 	"sync/atomic"
+	"time"
 )
 
 // Consumer wraps sarama's ConsumerGroup.
@@ -14,11 +16,13 @@ type Consumer struct {
 	incomingMessages      chan *shared.KafkaMessage
 	consumerContextCancel context.CancelFunc
 	messagesToMark        chan *shared.KafkaMessage
-	topics                []string
+	regexTopics           []regexp.Regexp
 	brokers               []string
 	markedMessages        atomic.Uint64
 	consumedMessages      atomic.Uint64
 	running               atomic.Bool
+	actualTopics          []string
+	internalCtx           context.Context
 }
 
 // NewConsumer initializes a Consumer.
@@ -31,9 +35,18 @@ func NewConsumer(brokers, topic []string, groupName string) (*Consumer, error) {
 		return nil, err
 	}
 
+	var rgxTopics []regexp.Regexp
+	for _, t := range topic {
+		rgx, err := regexp.Compile(t)
+		if err != nil {
+			return nil, err
+		}
+		rgxTopics = append(rgxTopics, *rgx)
+	}
+
 	return &Consumer{
 		brokers:          brokers,
-		topics:           topic,
+		regexTopics:      rgxTopics,
 		consumerGroup:    &cg,
 		incomingMessages: make(chan *shared.KafkaMessage, 100_000),
 		messagesToMark:   make(chan *shared.KafkaMessage, 100_000),
@@ -45,13 +58,13 @@ func (c *Consumer) Start(ctx context.Context) error {
 	if c.running.Swap(true) {
 		return nil
 	}
-	internalCtx, cancel := context.WithCancel(ctx)
-	c.consumerContextCancel = cancel
-	go c.consume(internalCtx)
+	c.internalCtx, c.consumerContextCancel = context.WithCancel(ctx)
+	go c.consume()
+	go c.recheck()
 	return nil
 }
 
-func (c *Consumer) consume(ctx context.Context) {
+func (c *Consumer) consume() {
 	for c.running.Load() {
 		handler := &GroupHandler{
 			incomingMessages: c.incomingMessages,
@@ -61,10 +74,65 @@ func (c *Consumer) consume(ctx context.Context) {
 			consumedMessages: &c.consumedMessages,
 		}
 
-		if err := (*c.consumerGroup).Consume(ctx, c.topics, handler); err != nil {
+		zap.S().Infof("starting consumer with topics %v", c.actualTopics)
+
+		if err := (*c.consumerGroup).Consume(c.internalCtx, c.actualTopics, handler); err != nil {
 			c.running.Store(false)
 			zap.S().Error(err)
 		}
+	}
+}
+
+func (c *Consumer) recheck() {
+	adminClient, err := sarama.NewClusterAdmin(c.brokers, sarama.NewConfig())
+	if err != nil {
+		zap.S().Fatal(err)
+		return
+	}
+
+	var topics map[string]sarama.TopicDetail
+	for c.running.Load() {
+		topics, err = adminClient.ListTopics()
+		if err != nil {
+			continue
+		}
+		var newTopics []string
+		for name, details := range topics {
+			for _, rgx := range c.regexTopics {
+				if rgx.MatchString(name) {
+					if details.NumPartitions > 0 {
+						newTopics = append(newTopics, name)
+					}
+					break
+				}
+			}
+		}
+
+		var changed bool
+		if len(newTopics) != len(c.actualTopics) {
+			changed = true
+		} else {
+			for i := range newTopics {
+				if newTopics[i] != c.actualTopics[i] {
+					changed = true
+					break
+				}
+			}
+		}
+		if changed {
+			zap.S().Infof("topics changed from %v to %v", c.actualTopics, newTopics)
+			c.running.Store(false)
+			err = (*c.consumerGroup).Close()
+			if err != nil {
+				zap.S().Fatal(err)
+			}
+			// Wait for the consumer to stop
+			time.Sleep(shared.CycleTime * 10)
+			c.actualTopics = newTopics
+			c.consume()
+			zap.S().Infof("restarted consumer with topics %v", c.actualTopics)
+		}
+		time.Sleep(shared.CycleTime * 50)
 	}
 }
 
