@@ -14,7 +14,7 @@ type Consumer struct {
 	incomingMessages      chan *shared.KafkaMessage
 	consumerContextCancel context.CancelFunc
 	messagesToMark        chan *shared.KafkaMessage
-	topic                 string
+	topics                []string
 	brokers               []string
 	markedMessages        atomic.Uint64
 	consumedMessages      atomic.Uint64
@@ -22,7 +22,7 @@ type Consumer struct {
 }
 
 // NewConsumer initializes a Consumer.
-func NewConsumer(brokers []string, topic, groupName string) (*Consumer, error) {
+func NewConsumer(brokers, topic []string, groupName string) (*Consumer, error) {
 	config := sarama.NewConfig()
 	config.Consumer.Offsets.Initial = sarama.OffsetOldest
 
@@ -33,7 +33,7 @@ func NewConsumer(brokers []string, topic, groupName string) (*Consumer, error) {
 
 	return &Consumer{
 		brokers:          brokers,
-		topic:            topic,
+		topics:           topic,
 		consumerGroup:    &cg,
 		incomingMessages: make(chan *shared.KafkaMessage, 100_000),
 		messagesToMark:   make(chan *shared.KafkaMessage, 100_000),
@@ -61,7 +61,7 @@ func (c *Consumer) consume(ctx context.Context) {
 			consumedMessages: &c.consumedMessages,
 		}
 
-		if err := (*c.consumerGroup).Consume(ctx, []string{c.topic}, handler); err != nil {
+		if err := (*c.consumerGroup).Consume(ctx, c.topics, handler); err != nil {
 			c.running.Store(false)
 			zap.S().Error(err)
 		}
