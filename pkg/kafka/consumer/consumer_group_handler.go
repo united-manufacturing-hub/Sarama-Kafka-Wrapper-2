@@ -81,7 +81,6 @@ func marker(session *sarama.ConsumerGroupSession, messagesToMark chan *shared.Ka
 					(*session).MarkOffset(k.Topic, k.Partition, v, "")
 				}
 				(*session).Commit()
-				zap.S().Debugf("Committing messages")
 			}
 		case <-time.After(shared.CycleTime):
 			continue

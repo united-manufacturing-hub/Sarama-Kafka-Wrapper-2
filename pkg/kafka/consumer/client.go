@@ -218,8 +218,6 @@ func (c *Consumer) recheck() {
 			c.internalCtx, c.consumerContextCancel = context.WithCancel(c.externalCtx)
 			c.consume()
 			zap.S().Infof("restarted consumer with topics %v", c.actualTopics)
-		} else {
-			zap.S().Debugf("topics did not change")
 		}
 		_ = c.rawClient.RefreshMetadata()
 		time.Sleep(shared.CycleTime * 50)
