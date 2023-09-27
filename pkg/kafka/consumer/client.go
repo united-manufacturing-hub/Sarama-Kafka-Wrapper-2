@@ -304,6 +304,7 @@ func (c *Consumer) updateState() {
 				zap.S().Infof("rebalance in progress, restarting consumer")
 				c.consumerContextCancel()
 				c.internalCtx, c.consumerContextCancel = context.WithCancel(c.externalCtx)
+				shouldCancel = false
 			}
 		case "CompletingRebalance":
 			c.groupState = ConsumerStateCompletingRebalance
