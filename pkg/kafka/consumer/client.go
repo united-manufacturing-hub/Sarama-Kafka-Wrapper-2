@@ -78,7 +78,10 @@ func (c *Consumer) Start(ctx context.Context) error {
 		return nil
 	}
 	c.internalCtx, c.consumerContextCancel = context.WithCancel(ctx)
-	c.check()
+	err := c.check()
+	if err != nil {
+		return err
+	}
 	go c.consume()
 	go c.recheck()
 	return nil
