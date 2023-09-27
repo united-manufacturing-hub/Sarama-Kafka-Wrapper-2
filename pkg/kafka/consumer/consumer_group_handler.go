@@ -22,6 +22,7 @@ func (c *GroupHandler) Setup(_ sarama.ConsumerGroupSession) error {
 
 func (c *GroupHandler) Cleanup(session sarama.ConsumerGroupSession) error {
 	session.Commit()
+	c.running.Store(false)
 	// Wait for one cycle to finish
 	time.Sleep(shared.CycleTime)
 	return nil
