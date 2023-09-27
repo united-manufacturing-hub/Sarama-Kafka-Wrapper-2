@@ -39,6 +39,7 @@ type Consumer struct {
 	groupName             string
 	groupState            ConsumerState
 	externalCtx           context.Context
+	runConsumerGroup      atomic.Bool
 }
 
 // NewConsumer initializes a Consumer.
@@ -83,6 +84,7 @@ func NewConsumer(brokers, topic []string, groupName string, instanceId string) (
 		incomingMessages: make(chan *shared.KafkaMessage, 100_000),
 		messagesToMark:   make(chan *shared.KafkaMessage, 100_000),
 		running:          atomic.Bool{},
+		runConsumerGroup: atomic.Bool{},
 		groupName:        groupName,
 		groupState:       ConsumerStateUnknown,
 	}, nil
@@ -110,7 +112,7 @@ func (c *Consumer) consume() {
 		handler := &GroupHandler{
 			incomingMessages: c.incomingMessages,
 			messagesToMark:   c.messagesToMark,
-			running:          &c.running,
+			running:          &c.runConsumerGroup,
 			markedMessages:   &c.markedMessages,
 			consumedMessages: &c.consumedMessages,
 		}
@@ -277,6 +279,8 @@ func (c *Consumer) updateState() {
 		zap.S().Fatal(err)
 	}
 	var groups []*sarama.GroupDescription
+	var lastRunState bool
+	lastRunState = false
 	for {
 		groups, err = adminClient.DescribeConsumerGroups([]string{c.groupName})
 		if err != nil {
@@ -297,13 +301,15 @@ func (c *Consumer) updateState() {
 			c.groupState = ConsumerStateEmpty
 		case "Stable":
 			c.groupState = ConsumerStateStable
-			(*c.consumerGroup).ResumeAll()
+			c.runConsumerGroup.Store(true)
+			lastRunState = true
 		case "PreparingRebalance":
 			c.groupState = ConsumerStatePreparingRebalance
-			(*c.consumerGroup).PauseAll()
+			if lastRunState {
+				c.runConsumerGroup.Store(false)
+			}
 		case "CompletingRebalance":
 			c.groupState = ConsumerStateCompletingRebalance
-			(*c.consumerGroup).ResumeAll()
 		case "Dead":
 			c.groupState = ConsumerStateDead
 		default:
