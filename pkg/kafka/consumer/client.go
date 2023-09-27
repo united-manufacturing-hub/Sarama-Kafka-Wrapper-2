@@ -78,6 +78,7 @@ func (c *Consumer) Start(ctx context.Context) error {
 		return nil
 	}
 	c.internalCtx, c.consumerContextCancel = context.WithCancel(ctx)
+	c.check()
 	go c.consume()
 	go c.recheck()
 	return nil
@@ -111,6 +112,24 @@ func (c *Consumer) consume() {
 		}
 	}
 	zap.S().Infof("stopped consumer")
+}
+
+func (c *Consumer) check() error {
+	var err error
+	var topics []string
+	topics, err = c.rawClient.Topics()
+	if err != nil {
+		return err
+	}
+	for _, name := range topics {
+		for _, rgx := range c.regexTopics {
+			if rgx.MatchString(name) {
+				c.actualTopics = append(c.actualTopics, name)
+				break
+			}
+		}
+	}
+	return nil
 }
 
 func (c *Consumer) recheck() {
