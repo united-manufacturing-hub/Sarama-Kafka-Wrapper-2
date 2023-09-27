@@ -64,6 +64,7 @@ func NewConsumer(brokers, topic []string, groupName string) (*Consumer, error) {
 		rawClient:        c,
 		incomingMessages: make(chan *shared.KafkaMessage, 100_000),
 		messagesToMark:   make(chan *shared.KafkaMessage, 100_000),
+		running:          atomic.Bool{},
 	}, nil
 }
 
