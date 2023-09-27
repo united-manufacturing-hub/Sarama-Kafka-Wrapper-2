@@ -28,6 +28,7 @@ type Consumer struct {
 
 // NewConsumer initializes a Consumer.
 func NewConsumer(brokers, topic []string, groupName string) (*Consumer, error) {
+	zap.S().Infof("connecting to brokers: %v", brokers)
 	config := sarama.NewConfig()
 	config.Consumer.Offsets.Initial = sarama.OffsetOldest
 
