@@ -32,6 +32,7 @@ func NewConsumer(brokers, topic []string, groupName string, instanceId string) (
 	config := sarama.NewConfig()
 	config.Consumer.Offsets.Initial = sarama.OffsetOldest
 	config.Consumer.Group.InstanceId = instanceId
+	config.Version = sarama.V3_1_0_0
 
 	c, err := sarama.NewClient(brokers, config)
 	if err != nil {
