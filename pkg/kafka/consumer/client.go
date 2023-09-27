@@ -131,6 +131,10 @@ func (c *Consumer) consume() {
 				zap.S().Info("context canceled, trying later")
 				time.Sleep(shared.CycleTime * 10)
 				continue
+			} else if strings.Contains(err.Error(), "EOF") {
+				zap.S().Info("EOF, trying later")
+				time.Sleep(shared.CycleTime * 10)
+				continue
 			}
 			c.running.Store(false)
 			zap.S().Error(err)
@@ -273,6 +277,7 @@ func (c *Consumer) updateState() {
 		zap.S().Fatal(err)
 	}
 	var groups []*sarama.GroupDescription
+	shouldCancel := false
 	for {
 		groups, err = adminClient.DescribeConsumerGroups([]string{c.groupName})
 		if err != nil {
@@ -292,10 +297,14 @@ func (c *Consumer) updateState() {
 			c.groupState = ConsumerStateEmpty
 		case "Stable":
 			c.groupState = ConsumerStateStable
+			shouldCancel = true
 		case "PreparingRebalance":
 			c.groupState = ConsumerStatePreparingRebalance
-			c.consumerContextCancel()
-			c.internalCtx, c.consumerContextCancel = context.WithCancel(c.externalCtx)
+			if shouldCancel {
+				zap.S().Infof("rebalance in progress, restarting consumer")
+				c.consumerContextCancel()
+				c.internalCtx, c.consumerContextCancel = context.WithCancel(c.externalCtx)
+			}
 		case "CompletingRebalance":
 			c.groupState = ConsumerStateCompletingRebalance
 		case "Dead":
