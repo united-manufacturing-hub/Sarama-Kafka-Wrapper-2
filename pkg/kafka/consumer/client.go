@@ -298,10 +298,13 @@ func (c *Consumer) updateState() {
 			c.groupState = ConsumerStateEmpty
 		case "Stable":
 			c.groupState = ConsumerStateStable
+			(*c.consumerGroup).ResumeAll()
 		case "PreparingRebalance":
 			c.groupState = ConsumerStatePreparingRebalance
+			(*c.consumerGroup).PauseAll()
 		case "CompletingRebalance":
 			c.groupState = ConsumerStateCompletingRebalance
+			(*c.consumerGroup).ResumeAll()
 		case "Dead":
 			c.groupState = ConsumerStateDead
 		default:

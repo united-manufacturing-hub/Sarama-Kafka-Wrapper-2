@@ -97,6 +97,7 @@ func marker(session *sarama.ConsumerGroupSession, messagesToMark chan *shared.Ka
 
 func consumer(session *sarama.ConsumerGroupSession, claim *sarama.ConsumerGroupClaim, incomingMessages chan *shared.KafkaMessage, running *atomic.Bool, consumedMessages *atomic.Uint64) {
 	timer := time.NewTimer(shared.CycleTime)
+	timerTenSeconds := time.NewTimer(10 * time.Second)
 	messagesHandledCurrTenSeconds := 0.0
 	for running.Load() {
 		select {
@@ -115,6 +116,9 @@ func consumer(session *sarama.ConsumerGroupSession, claim *sarama.ConsumerGroupC
 		case <-timer.C:
 			timer.Reset(shared.CycleTime)
 			continue
+		case <-timerTenSeconds.C:
+			zap.S().Debugf("Consumer for session %s:%d is running", (*session).MemberID(), (*session).GenerationID())
+
 		}
 	}
 }
