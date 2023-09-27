@@ -38,6 +38,7 @@ type Consumer struct {
 	rawClient             sarama.Client
 	groupName             string
 	groupState            ConsumerState
+	externalCtx           context.Context
 }
 
 // NewConsumer initializes a Consumer.
@@ -92,6 +93,7 @@ func (c *Consumer) Start(ctx context.Context) error {
 	if c.running.Swap(true) {
 		return nil
 	}
+	c.externalCtx = ctx
 	c.internalCtx, c.consumerContextCancel = context.WithCancel(ctx)
 	err := c.check()
 	if err != nil {
@@ -123,6 +125,10 @@ func (c *Consumer) consume() {
 				continue
 			} else if strings.Contains(err.Error(), "i/o timeout") {
 				zap.S().Info("i/o timeout, trying later")
+				time.Sleep(shared.CycleTime * 10)
+				continue
+			} else if strings.Contains(err.Error(), "context canceled") {
+				zap.S().Info("context canceled, trying later")
 				time.Sleep(shared.CycleTime * 10)
 				continue
 			}
@@ -195,6 +201,7 @@ func (c *Consumer) recheck() {
 		if changed {
 			zap.S().Infof("topics changed from %v to %v", c.actualTopics, newTopics)
 			c.running.Store(false)
+			c.consumerContextCancel()
 			if err != nil {
 				zap.S().Fatal(err)
 			}
@@ -202,6 +209,7 @@ func (c *Consumer) recheck() {
 			time.Sleep(shared.CycleTime * 10)
 			c.running.Store(true)
 			c.actualTopics = newTopics
+			c.internalCtx, c.consumerContextCancel = context.WithCancel(c.externalCtx)
 			c.consume()
 			zap.S().Infof("restarted consumer with topics %v", c.actualTopics)
 		} else {
@@ -286,6 +294,8 @@ func (c *Consumer) updateState() {
 			c.groupState = ConsumerStateStable
 		case "PreparingRebalance":
 			c.groupState = ConsumerStatePreparingRebalance
+			c.consumerContextCancel()
+			c.internalCtx, c.consumerContextCancel = context.WithCancel(c.externalCtx)
 		case "CompletingRebalance":
 			c.groupState = ConsumerStateCompletingRebalance
 		case "Dead":
