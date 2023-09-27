@@ -78,7 +78,6 @@ func marker(session *sarama.ConsumerGroupSession, messagesToMark chan *shared.Ka
 			if markedMessages.Load()%10000 == 0 || time.Since(lastCommit) > 10*time.Second {
 				lastCommit = time.Now()
 				for k, v := range offsets {
-					zap.S().Debugf("Marking offset %d for %s:%d", v, k.Topic, k.Partition)
 					(*session).MarkOffset(k.Topic, k.Partition, v, "")
 				}
 				(*session).Commit()
