@@ -277,7 +277,6 @@ func (c *Consumer) updateState() {
 		zap.S().Fatal(err)
 	}
 	var groups []*sarama.GroupDescription
-	shouldCancel := false
 	for {
 		groups, err = adminClient.DescribeConsumerGroups([]string{c.groupName})
 		if err != nil {
@@ -291,28 +290,23 @@ func (c *Consumer) updateState() {
 			time.Sleep(shared.CycleTime * 10)
 			continue
 		}
+		currentGroup := groups[0]
+		zap.S().Debugf("current group: %v", currentGroup)
 
-		switch groups[0].State {
+		switch currentGroup.State {
 		case "Empty":
 			c.groupState = ConsumerStateEmpty
 		case "Stable":
 			c.groupState = ConsumerStateStable
-			shouldCancel = true
 		case "PreparingRebalance":
 			c.groupState = ConsumerStatePreparingRebalance
-			if shouldCancel {
-				zap.S().Infof("rebalance in progress, restarting consumer")
-				c.consumerContextCancel()
-				c.internalCtx, c.consumerContextCancel = context.WithCancel(c.externalCtx)
-				shouldCancel = false
-			}
 		case "CompletingRebalance":
 			c.groupState = ConsumerStateCompletingRebalance
 		case "Dead":
 			c.groupState = ConsumerStateDead
 		default:
 			c.groupState = ConsumerStateUnknown
-			zap.S().Warnf("unknown consumer group state: %s", groups[0].State)
+			zap.S().Warnf("unknown consumer group state: %s", currentGroup.State)
 		}
 
 		time.Sleep(shared.CycleTime * 10)
