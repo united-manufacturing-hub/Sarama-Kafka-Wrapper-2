@@ -6,6 +6,7 @@ import (
 	"github.com/united-manufacturing-hub/Sarama-Kafka-Wrapper-2/pkg/kafka/shared"
 	"go.uber.org/zap"
 	"regexp"
+	"strings"
 	"sync/atomic"
 	"time"
 )
@@ -100,11 +101,16 @@ func (c *Consumer) consume() {
 				zap.S().Info("no topics provided")
 				time.Sleep(shared.CycleTime * 10)
 				continue
+			} else if strings.Contains(err.Error(), "i/o timeout") {
+				zap.S().Info("i/o timeout, trying later")
+				time.Sleep(shared.CycleTime * 10)
+				continue
 			}
 			c.running.Store(false)
 			zap.S().Error(err)
 		}
 	}
+	zap.S().Infof("stopped consumer")
 }
 
 func (c *Consumer) recheck() {
@@ -112,7 +118,7 @@ func (c *Consumer) recheck() {
 
 	var topics []string
 	var err error
-	for c.running.Load() {
+	for !c.rawClient.Closed() {
 		topics, err = c.rawClient.Topics()
 		if err != nil {
 			continue

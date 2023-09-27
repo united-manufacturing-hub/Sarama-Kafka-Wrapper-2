@@ -47,7 +47,6 @@ type TopicPartition struct {
 func marker(session *sarama.ConsumerGroupSession, messagesToMark chan *shared.KafkaMessage, running *atomic.Bool, markedMessages *atomic.Uint64) {
 	lastCommit := time.Now()
 	offsets := make(map[TopicPartition]int64)
-
 	for running.Load() {
 		select {
 		case message := <-messagesToMark:
