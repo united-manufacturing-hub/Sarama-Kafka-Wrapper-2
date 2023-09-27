@@ -291,7 +291,6 @@ func (c *Consumer) updateState() {
 			continue
 		}
 		currentGroup := groups[0]
-		zap.S().Debugf("current group: %v", currentGroup)
 
 		switch currentGroup.State {
 		case "Empty":
