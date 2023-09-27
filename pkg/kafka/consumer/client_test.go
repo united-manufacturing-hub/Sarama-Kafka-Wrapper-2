@@ -26,7 +26,7 @@ func TestConnectAndReceive(t *testing.T) {
 	groupName := "sarama-kafka-wrapper-test-tcar-2"
 
 	t.Logf("Connecting to brokers: %v", brokers)
-	testConsumer, err := NewConsumer(brokers, []string{topic}, groupName)
+	testConsumer, err := NewConsumer(brokers, []string{topic}, groupName, "test-1")
 	if err != nil {
 		t.Fatal(err)
 	}
