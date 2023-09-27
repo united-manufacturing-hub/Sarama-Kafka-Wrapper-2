@@ -17,6 +17,7 @@ type GroupHandler struct {
 }
 
 func (c *GroupHandler) Setup(_ sarama.ConsumerGroupSession) error {
+	zap.S().Debugf("Hello from setup")
 	return nil
 }
 
@@ -25,6 +26,7 @@ func (c *GroupHandler) Cleanup(session sarama.ConsumerGroupSession) error {
 	c.running.Store(false)
 	// Wait for one cycle to finish
 	time.Sleep(shared.CycleTime)
+	zap.S().Debugf("Goodbye from cleanup")
 	return nil
 }
 
@@ -37,6 +39,7 @@ func (c *GroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim s
 	for c.running.Load() {
 		time.Sleep(shared.CycleTime * 10)
 	}
+	zap.S().Debugf("Goodbye from consume claim")
 	return err
 }
 
@@ -92,7 +95,7 @@ func marker(session *sarama.ConsumerGroupSession, messagesToMark chan *shared.Ka
 	}
 
 	(*session).Commit()
-	zap.S().Debugf("Commited messages")
+	zap.S().Debugf("Goodbye from marker")
 }
 
 func consumer(session *sarama.ConsumerGroupSession, claim *sarama.ConsumerGroupClaim, incomingMessages chan *shared.KafkaMessage, running *atomic.Bool, consumedMessages *atomic.Uint64) {
@@ -118,7 +121,8 @@ func consumer(session *sarama.ConsumerGroupSession, claim *sarama.ConsumerGroupC
 			continue
 		case <-timerTenSeconds.C:
 			zap.S().Debugf("Consumer for session %s:%d is running", (*session).MemberID(), (*session).GenerationID())
-
+			continue
 		}
 	}
+	zap.S().Debugf("Goodbye from consumer")
 }
