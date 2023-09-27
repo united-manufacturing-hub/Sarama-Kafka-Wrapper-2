@@ -11,6 +11,17 @@ import (
 	"time"
 )
 
+type ConsumerState int
+
+const (
+	ConsumerStateUnknown ConsumerState = iota
+	ConsumerStateEmpty
+	ConsumerStateStable
+	ConsumerStatePreparingRebalance
+	ConsumerStateCompletingRebalance
+	ConsumerStateDead
+)
+
 // Consumer wraps sarama's ConsumerGroup.
 type Consumer struct {
 	consumerGroup         *sarama.ConsumerGroup
@@ -25,6 +36,8 @@ type Consumer struct {
 	actualTopics          []string
 	internalCtx           context.Context
 	rawClient             sarama.Client
+	groupName             string
+	groupState            ConsumerState
 }
 
 // NewConsumer initializes a Consumer.
@@ -69,6 +82,8 @@ func NewConsumer(brokers, topic []string, groupName string, instanceId string) (
 		incomingMessages: make(chan *shared.KafkaMessage, 100_000),
 		messagesToMark:   make(chan *shared.KafkaMessage, 100_000),
 		running:          atomic.Bool{},
+		groupName:        groupName,
+		groupState:       ConsumerStateUnknown,
 	}, nil
 }
 
@@ -84,6 +99,7 @@ func (c *Consumer) Start(ctx context.Context) error {
 	}
 	go c.consume()
 	go c.recheck()
+	go c.updateState()
 	return nil
 }
 
@@ -241,4 +257,48 @@ func (c *Consumer) MarkMessages(msgs []*shared.KafkaMessage) {
 // GetStats returns marked and consumed message counts.
 func (c *Consumer) GetStats() (uint64, uint64) {
 	return c.markedMessages.Load(), c.consumedMessages.Load()
+}
+
+func (c *Consumer) updateState() {
+	adminClient, err := sarama.NewClusterAdmin(c.brokers, sarama.NewConfig())
+	if err != nil {
+		zap.S().Fatal(err)
+	}
+	var groups []*sarama.GroupDescription
+	for {
+		groups, err = adminClient.DescribeConsumerGroups([]string{c.groupName})
+		if err != nil {
+			zap.S().Warnf("failed to describe consumer groups: %s", err)
+			time.Sleep(shared.CycleTime * 10)
+			continue
+		}
+
+		if len(groups) != 1 {
+			zap.S().Warnf("expected 1 consumer group, got %d", len(groups))
+			time.Sleep(shared.CycleTime * 10)
+			continue
+		}
+
+		switch groups[0].State {
+		case "Empty":
+			c.groupState = ConsumerStateEmpty
+		case "Stable":
+			c.groupState = ConsumerStateStable
+		case "PreparingRebalance":
+			c.groupState = ConsumerStatePreparingRebalance
+		case "CompletingRebalance":
+			c.groupState = ConsumerStateCompletingRebalance
+		case "Dead":
+			c.groupState = ConsumerStateDead
+		default:
+			c.groupState = ConsumerStateUnknown
+			zap.S().Warnf("unknown consumer group state: %s", groups[0].State)
+		}
+
+		time.Sleep(shared.CycleTime * 10)
+	}
+}
+
+func (c *Consumer) GetState() ConsumerState {
+	return c.groupState
 }
