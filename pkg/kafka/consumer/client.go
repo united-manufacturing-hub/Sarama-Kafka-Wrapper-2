@@ -90,6 +90,10 @@ func NewConsumer(brokers, topic []string, groupName string, instanceId string) (
 	}, nil
 }
 
+func (c *Consumer) GetTopics() []string {
+	return c.actualTopics
+}
+
 // Start runs the Consumer.
 func (c *Consumer) Start(ctx context.Context) error {
 	if c.running.Swap(true) {
