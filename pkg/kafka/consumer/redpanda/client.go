@@ -84,8 +84,8 @@ func (c *Consumer) Start() error {
 
 	c.cgContext, c.cgCncl = context.WithCancel(context.Background())
 
-	c.generateTopics()
-	c.consumer()
+	go c.generateTopics()
+	go c.consumer()
 	return nil
 }
 
