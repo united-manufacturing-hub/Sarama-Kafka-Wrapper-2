@@ -21,8 +21,23 @@ func (c *GroupHandler) Setup(_ sarama.ConsumerGroupSession) error {
 	return nil
 }
 
-func (c *GroupHandler) Cleanup(session sarama.ConsumerGroupSession) error {
+func commit(session sarama.ConsumerGroupSession) chan bool {
 	session.Commit()
+	return nil
+}
+
+func (c *GroupHandler) Cleanup(session sarama.ConsumerGroupSession) error {
+	timeout := time.NewTimer(5 * time.Second)
+
+	select {
+	case <-timeout.C:
+		zap.S().Debugf("Timeout reached, closing consumer")
+		c.running.Store(false)
+		return nil
+	case <-commit(session):
+		zap.S().Debugf("Cleanup commit finished")
+	}
+
 	c.running.Store(false)
 	// Wait for one cycle to finish
 	time.Sleep(shared.CycleTime)
