@@ -30,6 +30,7 @@ type Consumer struct {
 	markedMessages   atomic.Uint64
 	consumedMessages atomic.Uint64
 	consumerRunning  atomic.Bool
+	groupName        string
 }
 
 // GetStats returns marked and consumed message counts.
@@ -50,12 +51,6 @@ func NewConsumer(kafkaBrokers, httpBrokers, subscribeRegexes []string, groupName
 	}
 	zap.S().Infof("connected to brokers: %v", kafkaBrokers)
 
-	var cg sarama.ConsumerGroup
-	cg, err = sarama.NewConsumerGroupFromClient(groupName, c)
-	if err != nil {
-		return nil, err
-	}
-
 	var rgxTopics []regexp.Regexp
 	for _, t := range subscribeRegexes {
 		rgx, err := regexp.Compile(t)
@@ -66,10 +61,10 @@ func NewConsumer(kafkaBrokers, httpBrokers, subscribeRegexes []string, groupName
 	}
 
 	return &Consumer{
-		rawClient:     c,
-		httpClients:   httpBrokers,
-		regexTopics:   rgxTopics,
-		consumerGroup: &cg,
+		rawClient:   c,
+		httpClients: httpBrokers,
+		regexTopics: rgxTopics,
+		groupName:   groupName,
 	}, nil
 }
 
@@ -81,7 +76,6 @@ func (c *Consumer) Start() error {
 	if c.running.Swap(true) {
 		return nil
 	}
-
 	c.cgContext, c.cgCncl = context.WithCancel(context.Background())
 
 	go c.generateTopics()
@@ -184,6 +178,12 @@ func (c *Consumer) consumer() {
 			consumedMessages: &c.consumedMessages,
 			running:          &c.consumerRunning,
 		}
+		err := c.recreateConsumerGroup()
+		if err != nil {
+			zap.S().Warnf("Failed to recreate consumer group: %s", err)
+			time.Sleep(shared.CycleTime * 100)
+			continue
+		}
 
 		zap.S().Debugf("Getting topics")
 		c.actualTopicsLock.RLock()
@@ -257,4 +257,19 @@ func (c *Consumer) MarkMessages(msgs []*shared.KafkaMessage) {
 	for _, msg := range msgs {
 		c.messagesToMark <- msg
 	}
+}
+
+func (c *Consumer) recreateConsumerGroup() error {
+	if c.consumerGroup != nil {
+		err := (*c.consumerGroup).Close()
+		if err != nil {
+			zap.S().Infof("Failed to close consumer group: %s", err)
+		}
+	}
+	cg, err := sarama.NewConsumerGroupFromClient(c.groupName, c.rawClient)
+	if err != nil {
+		return err
+	}
+	c.consumerGroup = &cg
+	return nil
 }
