@@ -61,10 +61,16 @@ func NewConsumer(kafkaBrokers, httpBrokers, subscribeRegexes []string, groupName
 	}
 
 	return &Consumer{
-		rawClient:   c,
-		httpClients: httpBrokers,
-		regexTopics: rgxTopics,
-		groupName:   groupName,
+		rawClient:        c,
+		httpClients:      httpBrokers,
+		regexTopics:      rgxTopics,
+		actualTopics:     []string{},
+		running:          atomic.Bool{},
+		groupName:        groupName,
+		markedMessages:   atomic.Uint64{},
+		consumerRunning:  atomic.Bool{},
+		incomingMessages: make(chan *shared.KafkaMessage, 100_000),
+		messagesToMark:   make(chan *shared.KafkaMessage, 100_000),
 	}, nil
 }
 
