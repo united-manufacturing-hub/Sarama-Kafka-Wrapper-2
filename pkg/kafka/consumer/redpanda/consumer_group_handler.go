@@ -106,7 +106,7 @@ func marker(session *sarama.ConsumerGroupSession, messagesToMark chan *shared.Ka
 		}
 	}
 
-	zap.S().Debugf("Committing messages")
+	zap.S().Debugf("Marker committing messages")
 	for k, v := range offsets {
 		(*session).MarkOffset(k.Topic, k.Partition, v, "")
 	}
