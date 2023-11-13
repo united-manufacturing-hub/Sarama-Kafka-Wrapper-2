@@ -220,7 +220,7 @@ func (c *Consumer) recheck() {
 			c.running.Store(true)
 			c.actualTopics = newTopics
 			c.internalCtx, c.consumerContextCancel = context.WithCancel(c.externalCtx)
-			c.consume()
+			go c.consume()
 			zap.S().Infof("restarted consumer with topics %v", c.actualTopics)
 		}
 		_ = c.rawClient.RefreshMetadata()
