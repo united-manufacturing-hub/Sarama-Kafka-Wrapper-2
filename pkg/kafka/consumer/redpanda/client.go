@@ -212,8 +212,21 @@ func (c *Consumer) Close() error {
 	if !c.running.Swap(false) {
 		return nil
 	}
-	c.cgCncl()
-	return (*c.consumerGroup).Close()
+	closeTimeout := 5 * time.Second
+	select {
+	case <-time.After(closeTimeout):
+		zap.S().Warnf("failed to close consumer within %s", closeTimeout)
+	case err := <-func() chan error {
+		c.cgCncl()
+		err := (*c.consumerGroup).Close()
+		chanX := make(chan error, 1)
+		chanX <- err
+		return chanX
+	}():
+		return err
+	}
+
+	return nil
 }
 
 // IsRunning returns the run state.
