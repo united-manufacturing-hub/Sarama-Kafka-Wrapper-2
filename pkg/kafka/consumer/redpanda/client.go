@@ -151,6 +151,7 @@ func (c *Consumer) generateTopics() {
 				break
 			}
 		}
+		c.actualTopicsLock.Unlock()
 
 		if changed {
 			zap.S().Infof("topics changed: %v", actualTopics)
