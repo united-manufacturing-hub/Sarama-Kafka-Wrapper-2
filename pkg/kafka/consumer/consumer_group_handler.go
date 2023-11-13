@@ -23,6 +23,7 @@ func (c *GroupHandler) Setup(_ sarama.ConsumerGroupSession) error {
 
 func commit(session sarama.ConsumerGroupSession) chan bool {
 	now := time.Now()
+	zap.S().Debugf("Committing messages")
 	session.Commit()
 	zap.S().Debugf("Commit took %s", time.Since(now))
 	return nil
