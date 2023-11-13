@@ -29,7 +29,7 @@ type Consumer struct {
 	messagesToMark   chan *shared.KafkaMessage
 	markedMessages   atomic.Uint64
 	consumedMessages atomic.Uint64
-	consumerRunning  atomic.Bool
+	shallConsumerRun atomic.Bool
 	groupName        string
 }
 
@@ -68,7 +68,7 @@ func NewConsumer(kafkaBrokers, httpBrokers, subscribeRegexes []string, groupName
 		running:          atomic.Bool{},
 		groupName:        groupName,
 		markedMessages:   atomic.Uint64{},
-		consumerRunning:  atomic.Bool{},
+		shallConsumerRun: atomic.Bool{},
 		incomingMessages: make(chan *shared.KafkaMessage, 100_000),
 		messagesToMark:   make(chan *shared.KafkaMessage, 100_000),
 	}, nil
@@ -160,6 +160,7 @@ func (c *Consumer) generateTopics() {
 			c.actualTopicsLock.Unlock()
 			zap.S().Debugf("updated actual topics")
 			c.cgCncl()
+			c.shallConsumerRun.Store(false)
 			zap.S().Debugf("cancled context")
 			c.cgContext, c.cgCncl = context.WithCancel(context.Background())
 		}
@@ -177,7 +178,7 @@ func (c *Consumer) consumer() {
 			messagesToMark:   c.messagesToMark,
 			markedMessages:   &c.markedMessages,
 			consumedMessages: &c.consumedMessages,
-			running:          &c.consumerRunning,
+			running:          &c.shallConsumerRun,
 		}
 		err := c.createConsumerGroup()
 		if err != nil {
@@ -192,6 +193,7 @@ func (c *Consumer) consumer() {
 		copy(topicClone, c.actualTopics)
 		c.actualTopicsLock.RUnlock()
 		zap.S().Debugf("Beginning consume loop")
+		c.shallConsumerRun.Store(true)
 		if err := (*c.consumerGroup).Consume(c.cgContext, topicClone, handler); err != nil {
 			// Check if the error is "no topics provided"
 			if err.Error() == "no topics provided" {
