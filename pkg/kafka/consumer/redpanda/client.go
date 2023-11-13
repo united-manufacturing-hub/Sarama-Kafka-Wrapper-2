@@ -189,6 +189,7 @@ func (c *Consumer) consumer() {
 		topicClone := make([]string, len(c.actualTopics))
 		copy(topicClone, c.actualTopics)
 		c.actualTopicsLock.RUnlock()
+		zap.S().Debugf("Beginning consume loop")
 		if err := (*c.consumerGroup).Consume(c.cgContext, topicClone, handler); err != nil {
 			// Check if the error is "no topics provided"
 			if err.Error() == "no topics provided" {
@@ -210,6 +211,7 @@ func (c *Consumer) consumer() {
 			}
 			zap.S().Fatalf("failed to consume: %v", err)
 		}
+		zap.S().Debugf("End consume loop")
 
 	}
 	zap.S().Debugf("Goodbye consumer")
