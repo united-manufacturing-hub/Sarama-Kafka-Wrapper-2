@@ -1,4 +1,4 @@
-package consumer
+package redpanda
 
 import (
 	"github.com/IBM/sarama"
@@ -18,6 +18,7 @@ type GroupHandler struct {
 
 func (c *GroupHandler) Setup(_ sarama.ConsumerGroupSession) error {
 	zap.S().Debugf("Hello from setup")
+	c.running.Store(true)
 	return nil
 }
 
