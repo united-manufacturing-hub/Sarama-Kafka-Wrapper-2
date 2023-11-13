@@ -154,12 +154,7 @@ func (c *Consumer) generateTopics() {
 			c.actualTopicsLock.Unlock()
 			zap.S().Debugf("updated actual topics")
 			c.cgCncl()
-			zap.S().Debugf("closing consumer group")
-			err := (*c.consumerGroup).Close()
-			if err != nil {
-				zap.S().Fatalf("Failed to close consumer group: %s", err)
-			}
-			zap.S().Debugf("closed consumer group")
+			zap.S().Debugf("cancled context")
 			c.cgContext, c.cgCncl = context.WithCancel(context.Background())
 		}
 
@@ -178,7 +173,7 @@ func (c *Consumer) consumer() {
 			consumedMessages: &c.consumedMessages,
 			running:          &c.consumerRunning,
 		}
-		err := c.recreateConsumerGroup()
+		err := c.createConsumerGroup()
 		if err != nil {
 			zap.S().Warnf("Failed to recreate consumer group: %s", err)
 			time.Sleep(shared.CycleTime * 100)
@@ -195,24 +190,18 @@ func (c *Consumer) consumer() {
 			// Check if the error is "no topics provided"
 			if err.Error() == "no topics provided" {
 				zap.S().Info("no topics provided")
-				time.Sleep(shared.CycleTime * 100)
-				continue
 			} else if strings.Contains(err.Error(), "i/o timeout") {
 				zap.S().Info("i/o timeout, trying later")
-				time.Sleep(shared.CycleTime * 100)
-				continue
 			} else if strings.Contains(err.Error(), "context canceled") {
 				zap.S().Info("context canceled, trying later")
-				time.Sleep(shared.CycleTime * 100)
-				continue
 			} else if strings.Contains(err.Error(), "EOF") {
 				zap.S().Info("EOF, trying later")
-				time.Sleep(shared.CycleTime * 100)
-				continue
+			} else {
+				zap.S().Fatalf("failed to consume: %v", err)
 			}
-			zap.S().Fatalf("failed to consume: %v", err)
 		}
 		zap.S().Debugf("End consume loop")
+		time.Sleep(shared.CycleTime * 100)
 
 	}
 	zap.S().Debugf("Goodbye consumer")
@@ -259,12 +248,9 @@ func (c *Consumer) MarkMessages(msgs []*shared.KafkaMessage) {
 	}
 }
 
-func (c *Consumer) recreateConsumerGroup() error {
+func (c *Consumer) createConsumerGroup() error {
 	if c.consumerGroup != nil {
-		err := (*c.consumerGroup).Close()
-		if err != nil {
-			zap.S().Infof("Failed to close consumer group: %s", err)
-		}
+		return nil
 	}
 	cg, err := sarama.NewConsumerGroupFromClient(c.groupName, c.rawClient)
 	if err != nil {
