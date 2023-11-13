@@ -31,6 +31,7 @@ type Consumer struct {
 	consumedMessages atomic.Uint64
 	shallConsumerRun atomic.Bool
 	groupName        string
+	greeter          bool
 }
 
 // GetStats returns marked and consumed message counts.
@@ -38,7 +39,7 @@ func (c *Consumer) GetStats() (uint64, uint64) {
 	return c.markedMessages.Load(), c.consumedMessages.Load()
 }
 
-func NewConsumer(kafkaBrokers, httpBrokers, subscribeRegexes []string, groupName, instanceId string) (*Consumer, error) {
+func NewConsumer(kafkaBrokers, httpBrokers, subscribeRegexes []string, groupName, instanceId string, greeter bool) (*Consumer, error) {
 	zap.S().Infof("connecting to brokers: %v", kafkaBrokers)
 	config := sarama.NewConfig()
 	config.Consumer.Offsets.Initial = sarama.OffsetNewest
@@ -71,6 +72,7 @@ func NewConsumer(kafkaBrokers, httpBrokers, subscribeRegexes []string, groupName
 		shallConsumerRun: atomic.Bool{},
 		incomingMessages: make(chan *shared.KafkaMessage, 100_000),
 		messagesToMark:   make(chan *shared.KafkaMessage, 100_000),
+		greeter:          greeter,
 	}, nil
 }
 
@@ -148,6 +150,12 @@ func (c *Consumer) generateTopics() {
 			}
 			if !found {
 				changed = true
+				if c.greeter {
+					c.incomingMessages <- &shared.KafkaMessage{
+						Topic: topic,
+						Value: []byte(""),
+					}
+				}
 				break
 			}
 		}
