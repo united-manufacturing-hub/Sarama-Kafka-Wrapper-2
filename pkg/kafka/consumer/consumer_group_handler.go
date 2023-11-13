@@ -22,12 +22,14 @@ func (c *GroupHandler) Setup(_ sarama.ConsumerGroupSession) error {
 }
 
 func commit(session sarama.ConsumerGroupSession) chan bool {
+	now := time.Now()
 	session.Commit()
+	zap.S().Debugf("Commit took %s", time.Since(now))
 	return nil
 }
 
 func (c *GroupHandler) Cleanup(session sarama.ConsumerGroupSession) error {
-	timeout := time.NewTimer(5 * time.Second)
+	timeout := time.NewTimer(30 * time.Second)
 
 	select {
 	case <-timeout.C:
@@ -54,7 +56,7 @@ func (c *GroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim s
 	for c.running.Load() {
 		time.Sleep(shared.CycleTime * 10)
 	}
-	zap.S().Debugf("Goodbye from consume claim")
+	zap.S().Debugf("Goodbye from consume claim (%d-%s)", session.GenerationID(), session.MemberID())
 	return err
 }
 
@@ -95,7 +97,7 @@ func marker(session *sarama.ConsumerGroupSession, messagesToMark chan *shared.Ka
 				for k, v := range offsets {
 					(*session).MarkOffset(k.Topic, k.Partition, v, "")
 				}
-				(*session).Commit()
+				commit(*session)
 			}
 		case <-time.After(shared.CycleTime):
 			continue
@@ -106,9 +108,8 @@ func marker(session *sarama.ConsumerGroupSession, messagesToMark chan *shared.Ka
 	for k, v := range offsets {
 		(*session).MarkOffset(k.Topic, k.Partition, v, "")
 	}
-
-	(*session).Commit()
-	zap.S().Debugf("Goodbye from marker")
+	commit(*session)
+	zap.S().Debugf("Goodbye from marker (%d-%s)", (*session).GenerationID(), (*session).MemberID())
 }
 
 func consumer(session *sarama.ConsumerGroupSession, claim *sarama.ConsumerGroupClaim, incomingMessages chan *shared.KafkaMessage, running *atomic.Bool, consumedMessages *atomic.Uint64) {
@@ -137,5 +138,5 @@ func consumer(session *sarama.ConsumerGroupSession, claim *sarama.ConsumerGroupC
 			continue
 		}
 	}
-	zap.S().Debugf("Goodbye from consumer")
+	zap.S().Debugf("Goodbye from consumer (%d-%s)", (*session).GenerationID(), (*session).MemberID())
 }
