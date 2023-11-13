@@ -185,6 +185,7 @@ func (c *Consumer) consumer() {
 			running:          &c.consumerRunning,
 		}
 
+		zap.S().Debugf("Getting topics")
 		c.actualTopicsLock.RLock()
 		topicClone := make([]string, len(c.actualTopics))
 		copy(topicClone, c.actualTopics)
