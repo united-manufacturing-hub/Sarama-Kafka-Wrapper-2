@@ -181,6 +181,7 @@ func (c *Consumer) generateTopics() {
 func (c *Consumer) consumer() {
 	zap.S().Debugf("Started consumer")
 	for c.running.Load() {
+		zap.S().Debugf("Create handler")
 		handler := &GroupHandler{
 			incomingMessages: c.incomingMessages,
 			messagesToMark:   c.messagesToMark,
@@ -188,6 +189,7 @@ func (c *Consumer) consumer() {
 			consumedMessages: &c.consumedMessages,
 			running:          &c.shallConsumerRun,
 		}
+		zap.S().Debugf("Create consumer group")
 		err := c.createConsumerGroup()
 		if err != nil {
 			zap.S().Warnf("Failed to recreate consumer group: %s", err)
@@ -218,6 +220,7 @@ func (c *Consumer) consumer() {
 		}
 		zap.S().Debugf("End consume loop")
 		time.Sleep(shared.CycleTime * 100)
+		zap.S().Debugf("End sleep")
 
 	}
 	zap.S().Debugf("Goodbye consumer")
@@ -279,12 +282,15 @@ func (c *Consumer) MarkMessages(msgs []*shared.KafkaMessage) {
 
 func (c *Consumer) createConsumerGroup() error {
 	if c.consumerGroup != nil {
+		zap.S().Debugf("Consumer group already exists")
 		return nil
 	}
+	zap.S().Debugf("Creating consumer group")
 	cg, err := sarama.NewConsumerGroupFromClient(c.groupName, c.rawClient)
 	if err != nil {
 		return err
 	}
+	zap.S().Debugf("Created consumer group")
 	c.consumerGroup = &cg
 	return nil
 }
