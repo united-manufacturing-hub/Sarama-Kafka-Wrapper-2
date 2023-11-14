@@ -219,9 +219,6 @@ func (c *Consumer) consumer() {
 			}
 		}
 		zap.S().Debugf("End consume loop")
-		time.Sleep(shared.CycleTime * 10)
-		zap.S().Debugf("End sleep")
-
 	}
 	zap.S().Debugf("Goodbye consumer")
 }
