@@ -94,6 +94,9 @@ func (c *Consumer) Start() error {
 func (c *Consumer) generateTopics() {
 	zap.S().Debugf("Started topic generator")
 
+	var httpClient http.Client
+	httpClient.Timeout = 5 * time.Second
+
 	for c.running.Load() {
 
 		clients := c.httpClients
@@ -101,7 +104,7 @@ func (c *Consumer) generateTopics() {
 		for _, client := range clients {
 			url := fmt.Sprintf("http://%s/topics", client)
 			zap.S().Infof("fetching topics from %s", url)
-			response, err := http.Get(url)
+			response, err := httpClient.Get(url)
 			if err != nil {
 				zap.S().Errorf("failed to fetch topics from %s: %v", url, err)
 				continue
@@ -124,6 +127,7 @@ func (c *Consumer) generateTopics() {
 			for _, topic := range topicsX {
 				topics[topic] = true
 			}
+			zap.S().Debugf("Fetched %d topics from remote", len(topics))
 		}
 
 		// Filter topics by regex
@@ -136,6 +140,7 @@ func (c *Consumer) generateTopics() {
 				}
 			}
 		}
+		zap.S().Debugf("After regex check we have %d topics", len(actualTopics))
 
 		// Check if topics changed
 		c.actualTopicsLock.RLock()
@@ -171,8 +176,11 @@ func (c *Consumer) generateTopics() {
 			c.shallConsumerRun.Store(false)
 			zap.S().Debugf("cancled context")
 			c.cgContext, c.cgCncl = context.WithCancel(context.Background())
+		} else {
+			zap.S().Debugf("topics unchanged")
 		}
 
+		zap.S().Debugf("Finished topic generator")
 		time.Sleep(5 * time.Second)
 	}
 	zap.S().Debugf("Goodbye topic generator")
