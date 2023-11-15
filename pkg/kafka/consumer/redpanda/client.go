@@ -99,11 +99,8 @@ func (c *Consumer) generateTopics() {
 
 	ticker := time.NewTicker(5 * time.Second)
 
-	zap.S().Debugf("IsRunning: %v", c.running.Load())
 	for c.running.Load() {
-		zap.S().Debugf("Pre tick")
 		<-ticker.C
-		zap.S().Debugf("Started topic generator loop")
 
 		clients := c.httpClients
 		topics := make(map[string]bool)
@@ -181,7 +178,6 @@ func (c *Consumer) generateTopics() {
 			zap.S().Debugf("updated actual topics")
 			c.cgCncl()
 			c.shallConsumerRun.Store(false)
-			zap.S().Debugf("cancled context")
 			c.cgContext, c.cgCncl = context.WithCancel(context.Background())
 		} else {
 			zap.S().Debugf("topics unchanged")
@@ -204,6 +200,7 @@ func (c *Consumer) consumer() {
 
 		if len(topicClone) == 0 {
 			zap.S().Debugf("No topics for consume, trying later")
+			time.Sleep(5 * time.Second)
 			continue
 		}
 
