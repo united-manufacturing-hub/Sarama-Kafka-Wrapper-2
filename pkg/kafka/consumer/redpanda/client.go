@@ -213,11 +213,7 @@ func (c *Consumer) consumer() {
 			running:          &c.shallConsumerRun,
 		}
 		zap.S().Debugf("Create consumer group")
-		err := c.createConsumerGroup()
-		if err != nil {
-			zap.S().Warnf("Failed to recreate consumer group: %s", err)
-			continue
-		}
+		c.createConsumerGroup()
 
 		zap.S().Debugf("Beginning consume loop")
 		c.shallConsumerRun.Store(true)
@@ -296,17 +292,16 @@ func (c *Consumer) MarkMessages(msgs []*shared.KafkaMessage) {
 	}
 }
 
-func (c *Consumer) createConsumerGroup() error {
-	if c.consumerGroup != nil {
-		zap.S().Debugf("Consumer group already exists")
-		return nil
-	}
-	zap.S().Debugf("Creating consumer group")
-	cg, err := sarama.NewConsumerGroupFromClient(c.groupName, c.rawClient)
-	if err != nil {
-		return err
-	}
-	zap.S().Debugf("Created consumer group")
-	c.consumerGroup = &cg
-	return nil
+var createCGOnce sync.Once
+
+func (c *Consumer) createConsumerGroup() {
+	createCGOnce.Do(func() {
+		zap.S().Debugf("Creating consumer group: %v", c.consumerGroup)
+		cg, err := sarama.NewConsumerGroupFromClient(c.groupName, c.rawClient)
+		if err != nil {
+			zap.S().Fatalf("Failed to create consumer group: %v", err)
+		}
+		zap.S().Debugf("Created consumer group")
+		c.consumerGroup = &cg
+	})
 }
