@@ -98,6 +98,7 @@ func (c *Consumer) generateTopics() {
 	httpClient.Timeout = 5 * time.Second
 
 	for c.running.Load() {
+		zap.S().Debugf("Started topic generator loop")
 
 		clients := c.httpClients
 		topics := make(map[string]bool)
@@ -109,6 +110,7 @@ func (c *Consumer) generateTopics() {
 				zap.S().Errorf("failed to fetch topics from %s: %v", url, err)
 				continue
 			}
+			zap.S().Debugf("Finished http request")
 
 			// Parse as []string from JSON
 			var topicsX []string
@@ -181,7 +183,7 @@ func (c *Consumer) generateTopics() {
 		}
 
 		zap.S().Debugf("Finished topic generator")
-		time.Sleep(5 * time.Second)
+		time.Sleep(1 * time.Second)
 	}
 	zap.S().Debugf("Goodbye topic generator")
 }
