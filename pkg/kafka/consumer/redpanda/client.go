@@ -97,7 +97,7 @@ func (c *Consumer) generateTopics() {
 	var httpClient http.Client
 	httpClient.Timeout = 5 * time.Second
 
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 
 	zap.S().Debugf("IsRunning: %v", c.running.Load())
 	for c.running.Load() {
@@ -193,7 +193,7 @@ func (c *Consumer) generateTopics() {
 
 func (c *Consumer) consumer() {
 	zap.S().Debugf("Started consumer")
-	ticker := time.NewTicker(100 * time.Millisecond)
+	ticker := time.NewTicker(shared.CycleTime)
 	for c.running.Load() {
 		<-ticker.C
 		zap.S().Debugf("Getting topics")
@@ -219,7 +219,6 @@ func (c *Consumer) consumer() {
 		err := c.createConsumerGroup()
 		if err != nil {
 			zap.S().Warnf("Failed to recreate consumer group: %s", err)
-			time.Sleep(100 * time.Millisecond * 100)
 			continue
 		}
 

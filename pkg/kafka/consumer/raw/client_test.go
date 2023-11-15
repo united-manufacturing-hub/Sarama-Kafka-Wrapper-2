@@ -76,7 +76,7 @@ breakOuter:
 			statTimer.Reset(60 * time.Second)
 			t.Logf("[STAT] received %d messages (%d/s)", received, int(msgPerSecond))
 		default:
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(shared.CycleTime)
 		}
 	}
 	t.Logf("received %d messages", received)
