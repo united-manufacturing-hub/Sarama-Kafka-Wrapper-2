@@ -183,7 +183,7 @@ func (c *Consumer) generateTopics() {
 		}
 
 		zap.S().Debugf("Finished topic generator")
-		time.Sleep(shared.CycleTime * 100)
+		time.Sleep(shared.CycleTime * 10)
 	}
 	zap.S().Debugf("Goodbye topic generator")
 }
@@ -191,7 +191,7 @@ func (c *Consumer) generateTopics() {
 func (c *Consumer) consumer() {
 	zap.S().Debugf("Started consumer")
 	for c.running.Load() {
-		time.Sleep(shared.CycleTime * 100)
+		time.Sleep(shared.CycleTime * 10)
 		zap.S().Debugf("Getting topics")
 		c.actualTopicsLock.RLock()
 		topicClone := make([]string, len(c.actualTopics))
