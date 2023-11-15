@@ -97,7 +97,10 @@ func (c *Consumer) generateTopics() {
 	var httpClient http.Client
 	httpClient.Timeout = 5 * time.Second
 
+	ticker := time.NewTicker(1 * time.Second)
+
 	for c.running.Load() {
+		<-ticker.C
 		zap.S().Debugf("Started topic generator loop")
 
 		clients := c.httpClients
@@ -181,7 +184,6 @@ func (c *Consumer) generateTopics() {
 		} else {
 			zap.S().Debugf("topics unchanged")
 		}
-
 		zap.S().Debugf("Finished topic generator")
 	}
 	zap.S().Debugf("Goodbye topic generator")
@@ -189,8 +191,9 @@ func (c *Consumer) generateTopics() {
 
 func (c *Consumer) consumer() {
 	zap.S().Debugf("Started consumer")
+	ticker := time.NewTicker(100 * time.Millisecond)
 	for c.running.Load() {
-		time.Sleep(100 * time.Millisecond * 10)
+		<-ticker.C
 		zap.S().Debugf("Getting topics")
 		c.actualTopicsLock.RLock()
 		topicClone := make([]string, len(c.actualTopics))
@@ -235,8 +238,6 @@ func (c *Consumer) consumer() {
 			}
 		}
 		zap.S().Debugf("End consume loop")
-		time.Sleep(100 * time.Millisecond)
-		zap.S().Debugf("End sleep")
 	}
 	zap.S().Debugf("Goodbye consumer")
 }
