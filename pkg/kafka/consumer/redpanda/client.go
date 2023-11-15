@@ -101,6 +101,7 @@ func (c *Consumer) generateTopics() {
 
 	zap.S().Debugf("IsRunning: %v", c.running.Load())
 	for c.running.Load() {
+		zap.S().Debugf("Pre tick")
 		<-ticker.C
 		zap.S().Debugf("Started topic generator loop")
 
