@@ -292,16 +292,27 @@ func (c *Consumer) MarkMessages(msgs []*shared.KafkaMessage) {
 	}
 }
 
-var createCGOnce sync.Once
-
 func (c *Consumer) createConsumerGroup() {
-	createCGOnce.Do(func() {
-		zap.S().Debugf("Creating consumer group: %v", c.groupName)
-		cg, err := sarama.NewConsumerGroupFromClient(c.groupName, c.rawClient)
+	var err error
+	if c.consumerGroup != nil {
+		zap.S().Debugf("Closing existing consumer group")
+		err = (*c.consumerGroup).Close()
 		if err != nil {
-			zap.S().Fatalf("Failed to create consumer group: %v", err)
+			zap.S().Errorf("Failed to close existing consumer group: %s", err)
 		}
-		zap.S().Debugf("Created consumer group")
-		c.consumerGroup = &cg
-	})
+	}
+	zap.S().Debugf("Refreshing metadata")
+	err = c.rawClient.RefreshMetadata()
+	if err != nil {
+		zap.S().Errorf("Failed to refresh metadata: %s", err)
+	}
+	zap.S().Debugf("Creating consumer group: %v", c.groupName)
+	var cg sarama.ConsumerGroup
+	cg, err = sarama.NewConsumerGroupFromClient(c.groupName, c.rawClient)
+	if err != nil {
+		zap.S().Fatalf("Failed to create consumer group: %v", err)
+	}
+	zap.S().Debugf("Created consumer group")
+	c.consumerGroup = &cg
+
 }
