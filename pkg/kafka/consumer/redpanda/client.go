@@ -183,7 +183,7 @@ func (c *Consumer) generateTopics() {
 		}
 
 		zap.S().Debugf("Finished topic generator")
-		time.Sleep(shared.CycleTime * 10)
+		time.Sleep(100 * time.Millisecond * 10)
 	}
 	zap.S().Debugf("Goodbye topic generator")
 }
@@ -191,7 +191,7 @@ func (c *Consumer) generateTopics() {
 func (c *Consumer) consumer() {
 	zap.S().Debugf("Started consumer")
 	for c.running.Load() {
-		time.Sleep(shared.CycleTime * 10)
+		time.Sleep(100 * time.Millisecond * 10)
 		zap.S().Debugf("Getting topics")
 		c.actualTopicsLock.RLock()
 		topicClone := make([]string, len(c.actualTopics))
@@ -215,7 +215,7 @@ func (c *Consumer) consumer() {
 		err := c.createConsumerGroup()
 		if err != nil {
 			zap.S().Warnf("Failed to recreate consumer group: %s", err)
-			time.Sleep(shared.CycleTime * 100)
+			time.Sleep(100 * time.Millisecond * 100)
 			continue
 		}
 
@@ -236,7 +236,7 @@ func (c *Consumer) consumer() {
 			}
 		}
 		zap.S().Debugf("End consume loop")
-		time.Sleep(shared.CycleTime)
+		time.Sleep(100 * time.Millisecond)
 		zap.S().Debugf("End sleep")
 	}
 	zap.S().Debugf("Goodbye consumer")
