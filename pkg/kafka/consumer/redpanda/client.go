@@ -296,7 +296,7 @@ var createCGOnce sync.Once
 
 func (c *Consumer) createConsumerGroup() {
 	createCGOnce.Do(func() {
-		zap.S().Debugf("Creating consumer group: %v", c.consumerGroup)
+		zap.S().Debugf("Creating consumer group: %v", c.groupName)
 		cg, err := sarama.NewConsumerGroupFromClient(c.groupName, c.rawClient)
 		if err != nil {
 			zap.S().Fatalf("Failed to create consumer group: %v", err)
