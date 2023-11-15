@@ -232,7 +232,7 @@ func (c *Consumer) consumer() {
 			} else if strings.Contains(err.Error(), "EOF") {
 				zap.S().Info("EOF, trying later")
 			} else {
-				zap.S().Fatalf("failed to consume: %v", err)
+				zap.S().Errorf("failed to consume: %v", err)
 			}
 		}
 		zap.S().Debugf("End consume loop")
