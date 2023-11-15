@@ -99,6 +99,7 @@ func (c *Consumer) generateTopics() {
 
 	ticker := time.NewTicker(1 * time.Second)
 
+	zap.S().Debugf("IsRunning: %v", c.running.Load())
 	for c.running.Load() {
 		<-ticker.C
 		zap.S().Debugf("Started topic generator loop")
