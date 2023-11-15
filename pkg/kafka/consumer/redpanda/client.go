@@ -183,7 +183,6 @@ func (c *Consumer) generateTopics() {
 		}
 
 		zap.S().Debugf("Finished topic generator")
-		time.Sleep(100 * time.Millisecond * 10)
 	}
 	zap.S().Debugf("Goodbye topic generator")
 }
