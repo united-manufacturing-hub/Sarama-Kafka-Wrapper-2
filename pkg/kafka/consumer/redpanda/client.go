@@ -183,7 +183,7 @@ func (c *Consumer) generateTopics() {
 		}
 
 		zap.S().Debugf("Finished topic generator")
-		time.Sleep(1 * time.Second)
+		time.Sleep(shared.CycleTime * 100)
 	}
 	zap.S().Debugf("Goodbye topic generator")
 }
@@ -191,6 +191,18 @@ func (c *Consumer) generateTopics() {
 func (c *Consumer) consumer() {
 	zap.S().Debugf("Started consumer")
 	for c.running.Load() {
+		time.Sleep(shared.CycleTime * 100)
+		zap.S().Debugf("Getting topics")
+		c.actualTopicsLock.RLock()
+		topicClone := make([]string, len(c.actualTopics))
+		copy(topicClone, c.actualTopics)
+		c.actualTopicsLock.RUnlock()
+
+		if len(topicClone) == 0 {
+			zap.S().Debugf("No topics for consume, trying later")
+			continue
+		}
+
 		zap.S().Debugf("Create handler")
 		handler := &GroupHandler{
 			incomingMessages: c.incomingMessages,
@@ -207,11 +219,6 @@ func (c *Consumer) consumer() {
 			continue
 		}
 
-		zap.S().Debugf("Getting topics")
-		c.actualTopicsLock.RLock()
-		topicClone := make([]string, len(c.actualTopics))
-		copy(topicClone, c.actualTopics)
-		c.actualTopicsLock.RUnlock()
 		zap.S().Debugf("Beginning consume loop")
 		c.shallConsumerRun.Store(true)
 		if err := (*c.consumerGroup).Consume(c.cgContext, topicClone, handler); err != nil {
@@ -237,7 +244,9 @@ func (c *Consumer) consumer() {
 
 // Close terminates the Consumer.
 func (c *Consumer) Close() error {
+	zap.S().Info("closing consumer")
 	if !c.running.Swap(false) {
+		zap.S().Info("consumer already closed")
 		return nil
 	}
 	closeTimeout := 5 * time.Second
