@@ -60,7 +60,6 @@ func NewConsumer(kafkaBrokers, httpBrokers, subscribeRegexes []string, groupName
 		}
 		rgxTopics = append(rgxTopics, *rgx)
 	}
-
 	return &Consumer{
 		rawClient:               c,
 		httpClients:             httpBrokers,
@@ -88,6 +87,7 @@ func (c *Consumer) Start() error {
 
 	go c.generateTopics()
 	go c.consumer()
+	go c.reporter()
 	return nil
 }
 
@@ -317,8 +317,28 @@ func (c *Consumer) createConsumerGroup() {
 
 }
 
+func (c *Consumer) reporter() {
+	ticker10Seconds := time.NewTicker(10 * time.Second)
+	for c.running.Load() {
+		<-ticker10Seconds.C
+		marked, consumed := c.GetStats()
+		zap.S().Infof("marked: %d, consumed: %d", marked, consumed)
+		zap.S().Info("Incoming messages channel (%d/%d), Marked messages channel (%d/%d)",
+			len(c.incomingMessages), cap(c.incomingMessages),
+			len(c.messagesToMark), cap(c.messagesToMark))
+
+		for err := range (*c.consumerGroup).Errors() {
+			zap.S().Debugf("Consumer group error: %v", err)
+		}
+	}
+}
+
 func shutdown(c chan bool) {
-	for i := 0; i < cap(c)-1; i++ {
-		c <- true
+	for {
+		select {
+		case c <- true:
+		default:
+			return
+		}
 	}
 }
