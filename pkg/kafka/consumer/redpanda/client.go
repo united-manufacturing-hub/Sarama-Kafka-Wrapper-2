@@ -43,6 +43,8 @@ func NewConsumer(kafkaBrokers, httpBrokers, subscribeRegexes []string, groupName
 	zap.S().Infof("connecting to brokers: %v", kafkaBrokers)
 	config := sarama.NewConfig()
 	config.Consumer.Offsets.Initial = sarama.OffsetOldest
+	config.Consumer.Offsets.AutoCommit.Enable = true
+	config.Consumer.Offsets.AutoCommit.Interval = 1 * time.Second
 	config.Consumer.Group.InstanceId = instanceId
 	config.Version = sarama.V2_3_0_0
 

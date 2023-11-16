@@ -21,27 +21,7 @@ func (c *GroupHandler) Setup(_ sarama.ConsumerGroupSession) error {
 	return nil
 }
 
-func commit(session sarama.ConsumerGroupSession) chan bool {
-	now := time.Now()
-	zap.S().Debugf("Committing messages")
-	session.Commit()
-	zap.S().Debugf("Commit took %s", time.Since(now))
-	return nil
-}
-
-func commitWithTimeout(session sarama.ConsumerGroupSession, shutdownchannel chan bool) {
-	timeout := time.NewTimer(30 * time.Second)
-	select {
-	case <-timeout.C:
-		zap.S().Debugf("Timeout reached, closing consumer")
-		shutdown(shutdownchannel)
-	case <-commit(session):
-		zap.S().Debugf("Cleanup commit finished")
-	}
-}
-
 func (c *GroupHandler) Cleanup(session sarama.ConsumerGroupSession) error {
-	commitWithTimeout(session, c.shutdownChannel)
 	shutdown(c.shutdownChannel)
 	// Wait for one cycle to finish
 	time.Sleep(shared.CycleTime)
@@ -103,7 +83,6 @@ outer:
 				}
 				clear(offsets)
 				zap.S().Debugf("Marked offsets")
-				commitWithTimeout(*session, shutdownchan)
 				lastLoopCommited = true
 			}
 		case <-time.After(shared.CycleTime):
@@ -115,7 +94,6 @@ outer:
 	for k, v := range offsets {
 		(*session).MarkOffset(k.Topic, k.Partition, v, "")
 	}
-	commitWithTimeout(*session, shutdownchan)
 	zap.S().Debugf("Goodbye from marker (%d-%s)", (*session).GenerationID(), (*session).MemberID())
 }
 
