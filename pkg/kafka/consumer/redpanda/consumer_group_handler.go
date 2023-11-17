@@ -120,6 +120,7 @@ outer:
 				continue
 			}
 			if message == nil {
+				zap.S().Debugf("Message is nil for %s:%d", (*session).MemberID(), (*session).GenerationID())
 				time.Sleep(shared.CycleTime)
 				continue
 			}
