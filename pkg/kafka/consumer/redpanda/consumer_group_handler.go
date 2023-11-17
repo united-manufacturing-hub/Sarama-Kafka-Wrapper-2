@@ -61,7 +61,7 @@ outer:
 			if message == nil {
 				continue
 			}
-			(*session).MarkOffset(message.Topic, message.Partition, message.Offset, "")
+			(*session).MarkOffset(message.Topic, message.Partition, message.Offset+1, "")
 
 			// Checks if there is already an offset for the given topic and partition
 			// If the topic is new, then it can happen that there is no offset, but it should only happen once for each topic and partition and consumer group
