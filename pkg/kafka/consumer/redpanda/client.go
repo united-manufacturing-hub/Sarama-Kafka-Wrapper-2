@@ -106,6 +106,11 @@ func (c *Consumer) start(ready chan bool) {
 		c.topicsMutex.RLock()
 		copy(topics, c.topics)
 		c.topicsMutex.RUnlock()
+		if len(topics) == 0 {
+			zap.S().Infof("No topics to consume. Waiting for 1 second")
+			time.Sleep(1 * time.Second)
+			continue
+		}
 		consumer := ConsumerGroupHandler{
 			ready:              ready,
 			incomingMessages:   c.incomingMessages,
