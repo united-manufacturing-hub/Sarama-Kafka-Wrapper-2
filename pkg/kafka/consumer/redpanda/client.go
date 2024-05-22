@@ -71,7 +71,7 @@ func genIID(instanceId string) string {
 }
 
 // NewConsumer initializes and returns a new Consumer instance.
-func NewConsumer(kafkaBrokers, subscribeRegexes []string, groupId, instanceId string) (*Consumer, error) {
+func NewConsumer(kafkaBrokers, subscribeRegexes []string, groupId, instanceId string, initialOffset int64) (*Consumer, error) {
 	zap.S().Infof("Connecting to brokers: %v", kafkaBrokers)
 	zap.S().Infof("Creating new consumer with Group ID: %s, Instance ID: %s", groupId, instanceId)
 	zap.S().Infof("Subscribing to topics: %v", subscribeRegexes)
@@ -79,7 +79,7 @@ func NewConsumer(kafkaBrokers, subscribeRegexes []string, groupId, instanceId st
 	sarama.Logger = zap.NewStdLog(zap.L())
 
 	config := sarama.NewConfig()
-	config.Consumer.Offsets.Initial = sarama.OffsetOldest
+	config.Consumer.Offsets.Initial = initialOffset
 	config.Consumer.Offsets.AutoCommit.Enable = true
 	config.Consumer.Offsets.AutoCommit.Interval = 1 * time.Second
 	config.Consumer.Group.InstanceId = genIID(instanceId)
