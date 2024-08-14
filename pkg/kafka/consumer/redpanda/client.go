@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 	"regexp"
 	"slices"
+	"sort"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -347,4 +348,97 @@ func filter(topics []string, regexes []*regexp.Regexp) []string {
 	zap.S().Debugf("Filtered topics: %v to %v", topics, result)
 	slices.Sort(result)
 	return result
+}
+
+// UnsafeGetClient should only be used as a last resort.
+func (c *Consumer) UnsafeGetClient() *sarama.Client {
+	return c.client
+}
+
+// GetAllTopics returns all topics available in the Kafka cluster.
+func (c *Consumer) GetAllTopics() ([]string, error) {
+	if c.client == nil {
+		return nil, errors.New("client not initialized")
+	}
+	err := (*c.client).RefreshMetadata()
+	if err != nil {
+		return nil, err
+	}
+
+	return (*c.client).Topics()
+}
+
+// GetLastMessageFromTopic returns the latest message from a topic.
+func (c *Consumer) GetLastMessageFromTopic(topic string) (*shared.KafkaMessage, error) {
+	if c.client == nil {
+		return nil, errors.New("client not initialized")
+	}
+	partitions, err := (*c.client).Partitions(topic)
+	if err != nil {
+		return nil, err
+	}
+	if len(partitions) == 0 {
+		return nil, errors.New("no partitions found")
+	}
+	// We get one message from each partition and return the latest one
+	var messages []*shared.KafkaMessage
+	for _, partition := range partitions {
+		offset, err := (*c.client).GetOffset(topic, partition, sarama.OffsetNewest)
+		if err != nil {
+			continue
+		}
+		consumer, err := sarama.NewConsumerFromClient(*c.client)
+		if err != nil {
+			continue
+		}
+		pc, err := consumer.ConsumePartition(topic, partition, offset-1)
+		if err != nil {
+			continue
+		}
+		err = pc.Close()
+		if err != nil {
+			continue
+		}
+		timeout := time.After(5 * time.Second)
+		select {
+		case msg := <-pc.Messages():
+			messages = append(messages, &shared.KafkaMessage{
+				Topic:     msg.Topic,
+				Partition: msg.Partition,
+				Offset:    msg.Offset,
+				Key:       msg.Key,
+				Value:     msg.Value,
+				Metadata:  shared.Metadata{Timestamp: msg.Timestamp},
+			})
+		case <-timeout:
+			zap.S().Warnf("Timeout waiting for message from partition %d", partition)
+		}
+	}
+
+	if len(messages) == 0 {
+		return nil, nil
+	}
+	sort.Slice(messages, func(i, j int) bool {
+		return messages[i].Metadata.Timestamp.After(messages[j].Metadata.Timestamp)
+	})
+	return messages[0], nil
+}
+
+func (c *Consumer) GetAllLastMessages() (map[string]*shared.KafkaMessage, error) {
+	if c.client == nil {
+		return nil, errors.New("client not initialized")
+	}
+	topics, err := c.GetAllTopics()
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]*shared.KafkaMessage)
+	for _, topic := range topics {
+		msg, err := c.GetLastMessageFromTopic(topic)
+		if err != nil {
+			return nil, err
+		}
+		result[topic] = msg
+	}
+	return result, nil
 }
